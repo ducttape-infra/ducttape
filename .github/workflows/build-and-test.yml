@@ -1,0 +1,151 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout machine tool (gbraad-dotfiles/machine)
+        uses: actions/checkout@v4
+        with:
+          repository: gbraad-dotfiles/machine
+          path: .
+
+      - name: Checkout machinefile module
+        uses: actions/checkout@v4
+        with:
+          repository: machinefile/machinefile
+          path: machinefile
+
+      - name: Checkout macadam fork
+        uses: actions/checkout@v4
+        with:
+          repository: gbraad-dotfiles/macadam
+          path: macadam
+
+      - name: Checkout upstream repo
+        uses: actions/checkout@v4
+        with:
+          repository: gbraad-dotfiles/upstream
+          path: upstream
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Add dependencies
+        shell: sudo bash {0}
+        run: |
+          apt update && apt install -y libgpgme-dev libbtrfs-dev sshpass
+
+      - name: virtualization support
+        continue-on-error: true
+        uses: gbraad-actions/setup-virtualization@v3
+
+      - name: Install containers tools (optional)
+        continue-on-error: true
+        uses: gbraad-actions/setup-container-tools@v1
+
+      - name: Update go.mod replace directives for CI paths
+        run: |
+          go mod edit -replace=github.com/machinefile/machinefile=./machinefile
+          go mod edit -replace=github.com/crc-org/macadam=./macadam
+          echo "=== Updated go.mod ==="
+          cat go.mod
+
+      - name: Initialize and tidy go module
+        run: |
+          go mod tidy
+          go mod vendor
+
+      - name: Build machine binary
+        run: |
+          go version
+          go build -o machine ./cmd/machine
+          ls -l machine
+
+      - name: Verify binary builds & shows help
+        run: |
+          echo "=== machine --help ==="
+          ./machine --help
+          echo "=== machine build --help ==="
+          ./machine build --help
+          echo "=== machine run --help ==="
+          ./machine run --help
+
+      - name: Build image with machine
+        id: build-image
+        env:
+          IMAGE_TAG: fedora-httpd:latest
+        run: |
+          echo "Building image with:"
+          echo "  IMAGE_TAG: $IMAGE_TAG"
+          echo "  Machinefile: test/machinefiles/Machinefile.httpd"
+          echo "  Base image (-d): fedora-cloud (alias -> HTTPS download -> qcow2)"
+
+          ./machine build -t "$IMAGE_TAG" -f test/machinefiles/Machinefile.httpd -d fedora-cloud --root-pass password
+
+          # Verify the image was created
+          echo "=== Listing images after build ==="
+          ./machine images
+          ls -la ~/.local/share/machine/images/
+          echo "Built image $IMAGE_TAG"
+
+      - name: Run VM from built image
+        env:
+          IMAGE_TAG: fedora-httpd:latest
+          VM_NAME: fedora-httpd
+        run: |
+          echo "Running VM from $IMAGE_TAG..."
+          ./machine run "$IMAGE_TAG" --name "$VM_NAME"
+
+          echo "Waiting for SSH..."
+          for i in $(seq 1 30); do
+            ./machine shell "$VM_NAME" true 2>/dev/null && break
+            sleep 10
+          done
+          echo "VM ready."
+
+          echo "=== Verify httpd ==="
+          ./machine shell "$VM_NAME" sudo systemctl status httpd --no-pager 2>&1 | head -10
+
+          echo "=== Verify page ==="
+          ./machine shell "$VM_NAME" curl -s http://localhost/ 2>&1 | head -5
+
+          echo "=== Stop and clean VM ==="
+          ./machine stop "$VM_NAME"
+          ./machine rm "$VM_NAME" || true
+
+      - name: Push image to registry
+        env:
+          IMAGE_TAG: fedora-httpd:latest
+        run: |
+          TAG=$(date +'%y%m%d')
+          mkdir -p /tmp/disk-push
+          cp ~/.local/share/machine/images/fedora-httpd.qcow2 /tmp/disk-push/disk.qcow2
+
+          cat > /tmp/disk-push/Containerfile <<EOF
+          FROM scratch
+          ADD ./disk.qcow2 /disk.qcow2
+          EOF
+
+          podman build -t ghcr.io/gbraad-dotfiles/fedora-httpd-disk:latest /tmp/disk-push
+          podman tag ghcr.io/gbraad-dotfiles/fedora-httpd-disk:latest ghcr.io/gbraad-dotfiles/fedora-httpd-disk:${TAG}
+          echo "Image tagged. Push would require:"
+          echo "  podman login ghcr.io -u \${{ github.actor }} -p \${{ secrets.GITHUB_TOKEN }}"
+          echo "  podman push ghcr.io/gbraad-dotfiles/fedora-httpd-disk:latest"
+
+      - name: Upload machine binary
+
+        uses: actions/upload-artifact@v4
+        with:
+          name: machine-binary
+          path: machine

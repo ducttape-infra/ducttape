@@ -1,0 +1,290 @@
+package main
+
+import (
+	"archive/tar"
+	"compress/gzip"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// downloadBaseImage downloads a base image from a URL or OCI registry to the local cache.
+// Supported URL schemes:
+//
+//	file:///path/to/image.qcow2  — copy from local path
+//	https://...                  — HTTP download
+//	registry:ref                 — pull OCI image, extract .qcow2 layer
+//
+// Returns the local path to the cached image.
+func downloadBaseImage(spec string, cacheName string) (string, error) {
+	dest := filepath.Join(baseImagesDir, cacheName+".qcow2")
+	_ = os.MkdirAll(baseImagesDir, 0o755)
+
+	if strings.HasPrefix(spec, "file://") {
+		src := strings.TrimPrefix(spec, "file://")
+		if err := copyFile(src, dest); err != nil {
+			return "", fmt.Errorf("copy %s: %w", src, err)
+		}
+		return dest, nil
+	}
+
+	if strings.HasPrefix(spec, "https://") || strings.HasPrefix(spec, "http://") {
+		fmt.Printf("Downloading %s ...\n", spec)
+		out, err := os.Create(dest)
+		if err != nil {
+			return "", fmt.Errorf("create %s: %w", dest, err)
+		}
+		defer out.Close()
+		resp, err := http.Get(spec)
+		if err != nil {
+			return "", fmt.Errorf("http get %s: %w", spec, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("http %s: %s", spec, resp.Status)
+		}
+		total := resp.ContentLength
+		prog := &progressWriter{total: total}
+		if _, err := io.Copy(io.MultiWriter(out, prog), resp.Body); err != nil {
+			return "", fmt.Errorf("download %s: %w", spec, err)
+		}
+		fmt.Println()
+		return dest, nil
+	}
+
+	if strings.HasPrefix(spec, "registry:") {
+		ref := strings.TrimPrefix(spec, "registry:")
+		return pullFromRegistry(ref, dest)
+	}
+
+	return "", fmt.Errorf("unsupported image spec: %s", spec)
+}
+
+// pullFromRegistry pulls an OCI image from a registry, extracts the disk image
+// from its layers, and saves it to dest.
+func pullFromRegistry(ref string, dest string) (string, error) {
+	fmt.Printf("Pulling OCI image %s ...\n", ref)
+
+	parts := strings.SplitN(ref, "/", 2)
+	if len(parts) < 2 {
+		return "", fmt.Errorf("invalid registry reference (need registry/repo:tag): %s", ref)
+	}
+	registry := parts[0]
+	repo := parts[1]
+	tag := "latest"
+	if colon := strings.LastIndex(repo, ":"); colon >= 0 {
+		tag = repo[colon+1:]
+		repo = repo[:colon]
+	}
+
+	baseURL := fmt.Sprintf("https://%s/v2/%s", registry, repo)
+	tokenURL := fmt.Sprintf("https://%s/token?scope=repository:%s:pull&service=%s", registry, repo, registry)
+
+	tokenResp, err := http.Get(tokenURL)
+	if err != nil {
+		return "", fmt.Errorf("auth token: %w", err)
+	}
+	defer tokenResp.Body.Close()
+	var tokenData struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
+		return "", fmt.Errorf("parse token: %w", err)
+	}
+	auth := "Bearer " + tokenData.Token
+
+	req, _ := http.NewRequest("GET", baseURL+"/manifests/"+tag, nil)
+	req.Header.Set("Accept", "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json")
+	req.Header.Set("Authorization", auth)
+	manResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("manifest: %w", err)
+	}
+	defer manResp.Body.Close()
+
+	var manifest struct {
+		Layers []struct {
+			Digest    string `json:"digest"`
+			MediaType string `json:"mediaType"`
+		} `json:"layers"`
+	}
+	if err := json.NewDecoder(manResp.Body).Decode(&manifest); err != nil {
+		return "", fmt.Errorf("parse manifest: %w", err)
+	}
+	if len(manifest.Layers) == 0 {
+		return "", fmt.Errorf("no layers in manifest")
+	}
+
+	if skopeoPath, err := exec.LookPath("skopeo"); err == nil && skopeoPath != "" {
+		tmpDir, _ := os.MkdirTemp("", "machine-pull-*")
+		defer os.RemoveAll(tmpDir)
+		dlURL := fmt.Sprintf("docker://%s/%s:%s", registry, repo, tag)
+		dirDest := fmt.Sprintf("dir:%s", tmpDir)
+		cmd := exec.Command("skopeo", "copy", dlURL, dirDest)
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return "", fmt.Errorf("skopeo pull: %w", err)
+		}
+		return extractQCOWFromDir(tmpDir, manifest.Layers[0].Digest, dest)
+	}
+
+	tmpDir, _ := os.MkdirTemp("", "machine-pull-*")
+	defer os.RemoveAll(tmpDir)
+
+	for i, layer := range manifest.Layers {
+		fmt.Printf("  downloading layer %d/%d (%s)...\n", i+1, len(manifest.Layers), layer.Digest[:16])
+		req, _ := http.NewRequest("GET", baseURL+"/blobs/"+layer.Digest, nil)
+		req.Header.Set("Authorization", auth)
+		blobResp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("layer %d: %w", i, err)
+		}
+		layerFile := filepath.Join(tmpDir, fmt.Sprintf("layer-%d", i))
+		f, _ := os.Create(layerFile)
+		io.Copy(f, blobResp.Body)
+		f.Close()
+		blobResp.Body.Close()
+	}
+
+	for i := range manifest.Layers {
+		layerFile := filepath.Join(tmpDir, fmt.Sprintf("layer-%d", i))
+		if found := extractQCOWFromTar(layerFile, dest); found {
+			return dest, nil
+		}
+	}
+
+	return "", fmt.Errorf("no .qcow2 found in any layer")
+}
+
+// extractQCOWFromDir finds a blob file in a skopeo dir pull and
+// extracts any .qcow2 found.
+func extractQCOWFromDir(dir string, digest string, dest string) (string, error) {
+	hex := strings.TrimPrefix(digest, "sha256:")
+	blobPath := filepath.Join(dir, "blobs", "sha256", hex)
+	if fi, err := os.Stat(blobPath); err == nil && !fi.IsDir() {
+		if found := extractQCOWFromTar(blobPath, dest); found {
+			return dest, nil
+		}
+		if err := copyFile(blobPath, dest); err == nil {
+			return dest, nil
+		}
+	}
+	filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".qcow2") {
+			copyFile(path, dest)
+			return filepath.SkipAll
+		}
+		if extractQCOWFromTar(path, dest) {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	if _, err := os.Stat(dest); err == nil {
+		return dest, nil
+	}
+	return "", fmt.Errorf("could not extract qcow2 from pull output")
+}
+
+// extractQCOWFromTar opens path, decompresses if gzipped, reads tar entries,
+// and extracts any .qcow2 file found to dest.
+func extractQCOWFromTar(path string, dest string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	var tr *tar.Reader
+	if gz, err := gzip.NewReader(f); err == nil {
+		tr = tar.NewReader(gz)
+		defer gz.Close()
+	} else {
+		f.Seek(0, 0)
+		tr = tar.NewReader(f)
+	}
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return false
+		}
+		if !strings.HasSuffix(hdr.Name, ".qcow2") {
+			continue
+		}
+		out, err := os.Create(dest)
+		if err != nil {
+			return false
+		}
+		defer out.Close()
+		if _, err := io.Copy(out, tr); err != nil {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+// resolveBaseImage resolves a base image spec to a local QCOW2 file path.
+// Order:
+//  1. If spec is an existing file, use it directly.
+//  2. If spec matches a cached image in baseImagesDir, use it.
+//  3. If spec is a known alias, download and cache from the configured registry.
+//  4. Otherwise error.
+// progressWriter prints download progress every 10 MiB.
+type progressWriter struct {
+	total   int64
+	written int64
+	next    int64
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	w.written += int64(n)
+	if w.written >= w.next {
+		w.next = w.written + 10<<20 // 10 MiB
+		pct := ""
+		if w.total > 0 {
+			pct = fmt.Sprintf(" (%.0f%%)", float64(w.written)/float64(w.total)*100)
+		}
+		fmt.Printf("\r  %s / %s%s",
+			humanSize(w.written), humanSize(w.total), pct)
+	}
+	return n, nil
+}
+
+func humanSize(b int64) string {
+	switch {
+	case b >= 1<<30:
+		return fmt.Sprintf("%.1f GiB", float64(b)/float64(1<<30))
+	case b >= 1<<20:
+		return fmt.Sprintf("%.1f MiB", float64(b)/float64(1<<20))
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
+}
+
+func resolveBaseImage(spec string) (string, error) {
+	if fi, err := os.Stat(spec); err == nil && !fi.IsDir() {
+		return spec, nil
+	}
+	candidate := filepath.Join(baseImagesDir, spec+".qcow2")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, nil
+	}
+	if url, ok := knownAliases[spec]; ok {
+		fmt.Printf("Resolved alias %q → %s\n", spec, url)
+		return downloadBaseImage(url, spec)
+	}
+	return "", fmt.Errorf("base image %q not found (as file, in %s, or as known alias)", spec, baseImagesDir)
+}
