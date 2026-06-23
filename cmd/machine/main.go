@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,11 +16,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-import _ "embed"
-//go:embed assets/gvproxy
-var gvproxyData []byte
-//go:embed assets/macadam
-var macadamData []byte
+
+//go:embed assets/*
+var assets embed.FS
 
 var (
 	machineHome   = "/home/gbraad/.local/share/machine"
@@ -28,47 +27,44 @@ var (
 	configDir     = "/home/gbraad/.config/containers/macadam/machine/qemu"
 )
 
-var macadamBin string
-// setupEnv returns a func that sets up the environment for macadam/gvproxy.
-// It caches the binaries in $HOME/.cache/machine/bin to avoid re-extraction.
-// It sets CONTAINERS_HELPER_BINARY_DIR so gvproxy is found without containers.conf.
-// It sets the package variable macadamBin to the path of the macadam binary.
-// The returned func does nothing (cleanup is not needed).
+//go:embed assets/macadam
+var macadamData []byte
+
+//go:embed assets/gvproxy
+var gvproxyData []byte
+
 func setupEnv(cmd *cobra.Command) func() {
-    cacheDir := filepath.Join(os.Getenv("HOME"), ".cache", "machine", "bin")
-    if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-        fmt.Fprintf(cmd.OutOrStderr(), "Failed to create cache dir: %v\n", err)
-        os.Exit(1)
-    }
-    gvproxyPath := filepath.Join(cacheDir, "gvproxy")
-    macadamPath := filepath.Join(cacheDir, "macadam")
-    // Check if both binaries exist and are executable
-    if _, err1 := os.Stat(gvproxyPath); err1 == nil {
-        if _, err2 := os.Stat(macadamPath); err2 == nil {
-            // both exist, use them
-            if err := os.Setenv("CONTAINERS_HELPER_BINARY_DIR", cacheDir); err != nil {
-                fmt.Fprintf(cmd.OutOrStderr(), "Failed to set CONTAINERS_HELPER_BINARY_DIR: %v\n", err)
-                os.Exit(1)
-            }
-            macadamBin = macadamPath
-            return func() {} // no cleanup
-        }
-    }
-    // otherwise, extract to cache
-    if err := os.WriteFile(gvproxyPath, gvproxyData, 0o755); err != nil {
-        fmt.Fprintf(cmd.OutOrStderr(), "Failed to write gvproxy binary: %v\n", err)
-        os.Exit(1)
-    }
-    if err := os.WriteFile(macadamPath, macadamData, 0o755); err != nil {
-        fmt.Fprintf(cmd.OutOrStderr(), "Failed to write macadam binary: %v\n", err)
-        os.Exit(1)
-    }
-    if err := os.Setenv("CONTAINERS_HELPER_BINARY_DIR", cacheDir); err != nil {
-        fmt.Fprintf(cmd.OutOrStderr(), "Failed to set CONTAINERS_HELPER_BINARY_DIR: %v\n", err)
-        os.Exit(1)
-    }
-    macadamBin = macadamPath
-    return func() {} // no cleanup, keep binaries in cache
+	// Create temporary directory for embedded binaries
+	tmpDir, err := os.MkdirTemp("", "machine-*")
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStderr(), "Failed to create temp dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Extract and set up macadam binary
+	macadamPath := filepath.Join(tmpDir, "macadam")
+	if err := os.WriteFile(macadamPath, macadamData, 0o755); err != nil {
+		fmt.Fprintf(cmd.OutOrStderr(), "Failed to write macadam binary: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Extract and set up gvproxy binary
+	gvproxyPath := filepath.Join(tmpDir, "gvproxy")
+	if err := os.WriteFile(gvproxyPath, gvproxyData, 0o755); err != nil {
+		fmt.Fprintf(cmd.OutOrStderr(), "Failed to write gvproxy binary: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Set CONTAINERS_HELPER_BINARY_DIR to our temp directory
+	if err := os.Setenv("CONTAINERS_HELPER_BINARY_DIR", tmpDir); err != nil {
+		fmt.Fprintf(cmd.OutOrStderr(), "Failed to set CONTAINERS_HELPER_BINARY_DIR: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Return cleanup function
+	return func() {
+		os.RemoveAll(tmpDir)
+	}
 }
 
 type VMInfo struct {
@@ -234,13 +230,12 @@ var buildCommand = &cobra.Command{
 		// cleanup function for VM
 		vmCleanup := func() {
 			// best effort cleanup
-			runCmd(macadamBin, "rm", "-f", tmpName)
+			runCmd("macadam", "rm", "-f", tmpName)
 		}
 		defer vmCleanup()
-		defer cleanup()
 
 		// init VM with base image (defaults)
-		if err := runCmd(macadamBin, "init",
+		if err := runCmd("macadam", "init",
 			"--name", tmpName,
 			"--cpus", "2",
 			"--memory", "2048",
@@ -252,13 +247,13 @@ var buildCommand = &cobra.Command{
 		}
 
 		// start VM
-		if err := runCmd(macadamBin, "start", tmpName); err != nil {
+		if err := runCmd("macadam", "start", tmpName); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "macadam start failed: %v\n", err)
 			os.Exit(1)
 		}
 		// ensure stop on error
 		defer func() {
-			runCmd(macadamBin, "stop", tmpName)
+			runCmd("macadam", "stop", tmpName)
 		}()
 
 		// wait for SSH
@@ -311,7 +306,7 @@ var buildCommand = &cobra.Command{
 		}
 
 		// stop VM before copying disk
-		if err := runCmd(macadamBin, "stop", tmpName); err != nil {
+		if err := runCmd("macadam", "stop", tmpName); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "macadam stop failed: %v\n", err)
 			os.Exit(1)
 		}
@@ -417,7 +412,7 @@ var psCommand = &cobra.Command{
 		fmt.Println("Running VMs:")
 		cleanup := setupEnv(cmd)
 		defer cleanup()
-		if err := runCmd(macadamBin, "list"); err != nil {
+		if err := runCmd("macadam", "list"); err != nil {
 			fmt.Printf("  (error running macadam list: %v)\n", err)
 		}
 	},
@@ -435,7 +430,7 @@ var stopCommand = &cobra.Command{
 		vm := args[0]
 		cleanup := setupEnv(cmd)
 		defer cleanup()
-		if err := runCmd(macadamBin, "stop", vm); err != nil {
+		if err := runCmd("macadam", "stop", vm); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "error stopping VM %s: %v\n", vm, err)
 			os.Exit(1)
 		}
@@ -455,7 +450,7 @@ var rmCommand = &cobra.Command{
 		vm := args[0]
 		cleanup := setupEnv(cmd)
 		defer cleanup()
-		if err := runCmd(macadamBin, "rm", "-f", vm); err != nil {
+		if err := runCmd("macadam", "rm", "-f", vm); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "error removing VM %s: %v\n", vm, err)
 			os.Exit(1)
 		}
