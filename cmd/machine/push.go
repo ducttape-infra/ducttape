@@ -23,19 +23,16 @@ var pushCommand = &cobra.Command{
 	Long: `Package a built QCOW2 disk image as an OCI artifact and push it.
 
   machine push fedora-httpd
-      → ghcr.io/gbraad-dotfiles/fedora-httpd-disk:latest
+      → ghcr.io/gbraad-dotfiles/fedora-httpd:latest
 
   machine push myimage ghcr.io/myuser/myimage:tag`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tag := args[0]
 
-		diskPath := filepath.Join(imagesDir, tag+".qcow2")
-		if fi, err := os.Stat(diskPath); err != nil || fi.IsDir() {
-			diskPath = tag
-			if fi, err := os.Stat(diskPath); err != nil || fi.IsDir() {
-				return fmt.Errorf("image %q not found in %s or as file", tag, imagesDir)
-			}
+		diskPath := resolveImagePath(tag)
+		if diskPath == "" {
+			return fmt.Errorf("image %q not found in base images, built images, or as file", tag)
 		}
 
 		var ref string
@@ -43,7 +40,7 @@ var pushCommand = &cobra.Command{
 			ref = args[1]
 		} else {
 			name := strings.TrimSuffix(tag, ":latest")
-			ref = fmt.Sprintf("ghcr.io/gbraad-dotfiles/%s-disk:latest", name)
+			ref = fmt.Sprintf("ghcr.io/gbraad-dotfiles/%s:latest", name)
 		}
 
 		// Parse reference: strip docker:// prefix if present, split registry/repo:tag

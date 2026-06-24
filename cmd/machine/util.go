@@ -186,6 +186,21 @@ func waitForSSHRoot(port int, password string, timeout time.Duration) error {
 	return fmt.Errorf("timeout waiting for SSH")
 }
 
+// resolveImagePath looks for a QCOW2 image in: file path, baseImagesDir, imagesDir.
+// Returns empty string if not found anywhere.
+func resolveImagePath(name string) string {
+	if fi, err := os.Stat(name); err == nil && !fi.IsDir() {
+		return name
+	}
+	for _, dir := range []string{baseImagesDir, imagesDir} {
+		candidate := filepath.Join(dir, name+".qcow2")
+		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // readQEMUPid reads the QEMU PID from the VM's pidfile in the macadam
 // config directory.  Returns 0 if the file doesn't exist or can't be read.
 func readQEMUPid(vmName string) int {

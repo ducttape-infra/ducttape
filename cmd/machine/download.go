@@ -275,13 +275,20 @@ func humanSize(b int64) string {
 }
 
 func resolveBaseImage(spec string) (string, error) {
+	// 1. Direct file path
 	if fi, err := os.Stat(spec); err == nil && !fi.IsDir() {
 		return spec, nil
 	}
+	// 2. registry: URL — pull directly
+	if strings.HasPrefix(spec, "registry:") {
+		return downloadBaseImage(spec, filepath.Base(spec))
+	}
+	// 3. Cached image in baseImagesDir
 	candidate := filepath.Join(baseImagesDir, spec+".qcow2")
 	if _, err := os.Stat(candidate); err == nil {
 		return candidate, nil
 	}
+	// 4. Known alias
 	if url, ok := knownAliases[spec]; ok {
 		fmt.Printf("Resolved alias %q → %s\n", spec, url)
 		return downloadBaseImage(url, spec)
