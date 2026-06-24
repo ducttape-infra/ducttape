@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,8 +32,16 @@ var buildCommand = &cobra.Command{
 		rootPass := cmd.Flags().Lookup("root-pass").Value.String()
 		userPass := cmd.Flags().Lookup("user-pass").Value.String()
 
-		if tag == "" || baseSpec == "" {
-			fmt.Fprintln(cmd.OutOrStderr(), "Error: --tag and --base are required")
+		if tag == "" {
+			fmt.Fprintln(cmd.OutOrStderr(), "Error: --tag is required")
+			os.Exit(1)
+		}
+		// If no --base given, try reading FROM from the Machinefile
+		if baseSpec == "" && mfPath != "" {
+			baseSpec = readFromLine(mfPath)
+		}
+		if baseSpec == "" {
+			fmt.Fprintln(cmd.OutOrStderr(), "Error: --base is required when no FROM is in the Machinefile")
 			os.Exit(1)
 		}
 		ensureDirs()
@@ -104,6 +114,9 @@ var buildCommand = &cobra.Command{
 
 		// --- Phase 1: pre-Machinefile ---------------------------------
 		prePath := mfPath + "-pre"
+		if _, err := os.Stat(prePath); err != nil {
+			prePath = filepath.Join(filepath.Dir(mfPath), "Machinefile-pre")
+		}
 		if _, err := os.Stat(prePath); err == nil {
 			fmt.Printf("Running pre-Machinefile (%s)...\n", prePath)
 			preRunner := &mf.SSHRunner{
@@ -159,16 +172,6 @@ var buildCommand = &cobra.Command{
 
 		// --- Stop VM and copy disk ------------------------------------
 		fmt.Println("Stopping VM...")
-		// Kill QEMU by PID and wait (reap) so it cannot become a zombie.
-		// Macadam/shim.Stop can hang if QEMU is a zombie.
-		if pid := readQEMUPid(tmpName); pid > 0 {
-			syscall.Kill(pid, syscall.SIGTERM)
-			syscall.Wait4(pid, nil, 0, nil)
-		}
-		if err := p.StopVM(tmpName); err != nil {
-			fmt.Fprintf(cmd.OutOrStderr(), "%s stop failed: %v\n", provisionerName, err)
-			os.Exit(1)
-		}
 		if err := p.StopVM(tmpName); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "%s stop failed: %v\n", provisionerName, err)
 			os.Exit(1)
@@ -204,6 +207,43 @@ var buildCommand = &cobra.Command{
 }
 
 // waitForSSHInfo polls SSHInfo until the config is available or timeout.
+// readFromLine reads the FROM line from a Machinefile, expanding ARG
+// references with their defaults or from build args (--build-arg KEY=VAL).
+func readFromLine(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	env := map[string]string{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		if strings.HasPrefix(line, "ARG ") {
+			arg := strings.TrimSpace(strings.TrimPrefix(line, "ARG "))
+			if parts := strings.SplitN(arg, "=", 2); len(parts) == 2 {
+				val := strings.Trim(strings.TrimSpace(parts[1]), "\"'")
+				env[strings.TrimSpace(parts[0])] = val
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "FROM ") {
+			from := strings.TrimSpace(strings.TrimPrefix(line, "FROM "))
+			for k, v := range env {
+				from = strings.ReplaceAll(from, "${"+k+"}", v)
+				from = strings.ReplaceAll(from, "$"+k, v)
+			}
+			return from
+		}
+		break
+	}
+	return ""
+}
+
 func waitForSSHInfo(name string, p Provisioner, timeout time.Duration) (*VMInfo, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

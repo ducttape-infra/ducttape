@@ -283,15 +283,17 @@ func resolveBaseImage(spec string) (string, error) {
 	if strings.HasPrefix(spec, "registry:") {
 		return downloadBaseImage(spec, filepath.Base(spec))
 	}
-	// 3. Cached image in baseImagesDir
-	candidate := filepath.Join(baseImagesDir, spec+".qcow2")
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate, nil
+	// 3. Cached image in baseImagesDir or imagesDir
+	for _, dir := range []string{baseImagesDir, imagesDir} {
+		candidate := filepath.Join(dir, spec+".qcow2")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
 	}
 	// 4. Known alias
 	if url, ok := knownAliases[spec]; ok {
 		fmt.Printf("Resolved alias %q → %s\n", spec, url)
 		return downloadBaseImage(url, spec)
 	}
-	return "", fmt.Errorf("base image %q not found (as file, in %s, or as known alias)", spec, baseImagesDir)
+	return "", fmt.Errorf("base image %q not found (as file, in base images, built images, or known alias)", spec)
 }
