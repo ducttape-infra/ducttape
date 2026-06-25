@@ -22,7 +22,7 @@ var shellCommand = &cobra.Command{
 		if len(args) < 1 {
 			return fmt.Errorf("vm name required")
 		}
-		vmName := "machine-" + args[0]
+		vmName := "ducttape-" + args[0]
 
 		info, err := readSSHInfo(vmName)
 		if err != nil {

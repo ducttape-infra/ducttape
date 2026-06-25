@@ -12,25 +12,25 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout machine tool (gbraad-dotfiles/machine)
+      - name: Checkout ducttape tool
         uses: actions/checkout@v4
         with:
-          repository: gbraad-dotfiles/machine
+          repository: ducttape-infra/ducttape
           path: .
 
       - name: Checkout machinefile module
         uses: actions/checkout@v4
         with:
-          repository: machinefile/machinefile
+          repository: ducttape-infra/machinefile
           path: machinefile
 
       - name: Checkout macadam fork
         uses: actions/checkout@v4
         with:
-          repository: gbraad-dotfiles/macadam
+          repository: ducttape-infra/macadam
           path: macadam
 
-      - name: Checkout upstream repo
+      - name: Checkout dotfiles upstream repo
         uses: actions/checkout@v4
         with:
           repository: gbraad-dotfiles/upstream
@@ -66,22 +66,22 @@ jobs:
           go mod tidy
           go mod vendor
 
-      - name: Build machine binary
+      - name: Build ducttape binary
         run: |
           go version
-          go build -o machine ./cmd/machine
-          ls -l machine
+          go build -o ducttape ./cmd/ducttape
+          ls -l ducttape
 
       - name: Verify binary builds & shows help
         run: |
-          echo "=== machine --help ==="
-          ./machine --help
-          echo "=== machine build --help ==="
-          ./machine build --help
-          echo "=== machine run --help ==="
-          ./machine run --help
+          echo "=== ducttape --help ==="
+          ./ducttape --help
+          echo "=== ducttape build --help ==="
+          ./ducttape build --help
+          echo "=== ducttape run --help ==="
+          ./ducttape run --help
 
-      - name: Build image with machine
+      - name: Build image with ducttape
         id: build-image
         env:
           IMAGE_TAG: fedora-httpd:latest
@@ -91,12 +91,12 @@ jobs:
           echo "  Machinefile: test/machinefiles/Machinefile.httpd"
           echo "  Base image (-d): fedora-cloud (alias -> HTTPS download -> qcow2)"
 
-          ./machine build -t "$IMAGE_TAG" -f test/machinefiles/Machinefile.httpd -d fedora-cloud --root-pass password
+          ./ducttape build -t "$IMAGE_TAG" -f test/machinefiles/Machinefile.httpd -d fedora-cloud --root-pass password
 
           # Verify the image was created
           echo "=== Listing images after build ==="
-          ./machine images
-          ls -la ~/.local/share/machine/images/
+          ./ducttape images
+          ls -la ~/.local/share/ducttape/images/
           echo "Built image $IMAGE_TAG"
 
       - name: Run VM from built image
@@ -105,24 +105,24 @@ jobs:
           VM_NAME: fedora-httpd
         run: |
           echo "Running VM from $IMAGE_TAG..."
-          ./machine run "$IMAGE_TAG" --name "$VM_NAME"
+          ./ducttape run "$IMAGE_TAG" --name "$VM_NAME"
 
           echo "Waiting for SSH..."
           for i in $(seq 1 30); do
-            ./machine shell "$VM_NAME" true 2>/dev/null && break
+            ./ducttape shell "$VM_NAME" true 2>/dev/null && break
             sleep 10
           done
           echo "VM ready."
 
           echo "=== Verify httpd ==="
-          ./machine shell "$VM_NAME" sudo systemctl status httpd --no-pager 2>&1 | head -10
+          ./ducttape shell "$VM_NAME" sudo systemctl status httpd --no-pager 2>&1 | head -10
 
           echo "=== Verify page ==="
-          ./machine shell "$VM_NAME" curl -s http://localhost/ 2>&1 | head -5
+          ./ducttape shell "$VM_NAME" curl -s http://localhost/ 2>&1 | head -5
 
           echo "=== Stop and clean VM ==="
-          ./machine stop "$VM_NAME"
-          ./machine rm "$VM_NAME" || true
+          ./ducttape stop "$VM_NAME"
+          ./ducttape rm "$VM_NAME" || true
 
       - name: Push image to registry
         env:
@@ -131,11 +131,32 @@ jobs:
           REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Pushing image..."
-          ./machine push fedora-httpd:latest
+          ./ducttape push fedora-httpd:latest
 
-      - name: Upload machine binary
+      - name: Build derived image (FROM fedora-httpd)
+        env:
+          ROOT_PASS: password
+        run: |
+          echo "=== Derived build ==="
+          ./ducttape build -t derived-httpd -f test/machinefiles/Machinefile.derived --root-pass "$ROOT_PASS"
+
+          echo "=== Run derived ==="
+          ./ducttape run derived-httpd --name test-derived
+
+          echo "=== Verify page ==="
+          for i in $(seq 1 30); do
+            ./ducttape shell test-derived true 2>/dev/null && break
+            sleep 5
+          done
+          ./ducttape shell test-derived curl -s http://localhost/ 2>&1 | head -5
+
+          echo "=== Clean derived ==="
+          ./ducttape stop test-derived
+          ./ducttape rm test-derived || true
+
+      - name: Upload ducttape binary
 
         uses: actions/upload-artifact@v4
         with:
-          name: machine-binary
-          path: machine
+          name: ducttape-binary
+          path: ducttape

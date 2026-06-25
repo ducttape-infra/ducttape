@@ -12,21 +12,21 @@ import (
 
 var (
 	userHomeDir   = os.Getenv("HOME")
-	machineHome   = userHomeDir + "/.local/share/machine"
-	baseImagesDir = machineHome + "/base-images"
-	imagesDir     = machineHome + "/images"
+	ducttapeHome   = userHomeDir + "/.local/share/ducttape"
+	baseImagesDir = ducttapeHome + "/base-images"
+	imagesDir     = ducttapeHome + "/images"
 	configDir     = userHomeDir + "/.config/containers/podman/machine/qemu"
 )
 
 // init initializes Viper configuration and random seed.
 func init() {
 	v := viper.New()
-	v.SetConfigName("machine")
+	v.SetConfigName("ducttape")
 	v.AddConfigPath("$HOME/.config")
 	v.AddConfigPath(".")
 	if err := v.ReadInConfig(); err == nil {
 		if home := v.GetString("machine_home"); home != "" {
-			machineHome = home
+			ducttapeHome = home
 		}
 		if base := v.GetString("base_images_dir"); base != "" {
 			baseImagesDir = base
@@ -43,9 +43,9 @@ func init() {
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "machine",
+		Use:   "ducttape",
 		Short: "Machine CLI for managing cloud-init based VM images",
-		Long:  `Machine provides a Docker-like workflow for building and running VM images using Machinefiles.`,
+		Long:  `Ducttape provides a Docker-like workflow for building and running VM images using Machinefiles.`,
 	}
 
 	buildCommand.Flags().StringP("tag", "t", "", "Tag name for the resulting image")

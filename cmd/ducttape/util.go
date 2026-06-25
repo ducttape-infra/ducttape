@@ -16,7 +16,7 @@ import (
 )
 
 // findBinary searches for an executable binary.
-// order: envVar if set, exec.LookPath, ./bin/<name> relative to executable, $HOME/.cache/machine/bin/<name>.
+// order: envVar if set, exec.LookPath, ./bin/<name> relative to executable, $HOME/.cache/ducttape/bin/<name>.
 func findBinary(name string, envVar string) (string, error) {
 	if v := os.Getenv(envVar); v != "" {
 		if fi, err := os.Stat(v); err == nil && fi.Mode()&0111 != 0 {
@@ -37,12 +37,12 @@ func findBinary(name string, envVar string) (string, error) {
 	}
 	home := os.Getenv("HOME")
 	if home != "" {
-		candidate := filepath.Join(home, ".cache", "machine", "bin", name)
+		candidate := filepath.Join(home, ".cache", "ducttape", "bin", name)
 		if fi, err := os.Stat(candidate); err == nil && fi.Mode()&0111 != 0 {
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("%s not found in PATH, ./bin, or $HOME/.cache/machine/bin", name)
+	return "", fmt.Errorf("%s not found in PATH, ./bin, or $HOME/.cache/ducttape/bin", name)
 }
 
 // setupEnv prepares the runtime environment so that the macadam library
@@ -204,7 +204,7 @@ func resolveImagePath(name string) string {
 // readQEMUPid reads the QEMU PID from the VM's pidfile in the macadam
 // config directory.  Returns 0 if the file doesn't exist or can't be read.
 func readQEMUPid(vmName string) int {
-	pidPath := filepath.Join(os.Getenv("HOME"), ".local", "share", "containers", "podman", "machine", "qemu")
+	pidPath := filepath.Join(os.Getenv("HOME"), ".local", "share", "containers", "podman", "ducttape", "qemu")
 	// Try the actual QEMU pid path from the config directory
 	pidFile := filepath.Join(pidPath, vmName+"_vm.pid")
 	data, err := os.ReadFile(pidFile)

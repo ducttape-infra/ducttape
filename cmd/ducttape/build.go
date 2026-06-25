@@ -69,7 +69,7 @@ var buildCommand = &cobra.Command{
 			os.Exit(1)
 		}
 
-		tmpName := "machine-build-" + randomString(6)
+		tmpName := "ducttape-build-" + randomString(6)
 		var p Provisioner
 		vmCleanup := func() {
 			if p != nil {
@@ -152,8 +152,11 @@ var buildCommand = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// --- Phase 3: post-Machinefile ---------------------------------
+		// --- Phase 3: post-Machinefile --------------------------------
 		postPath := mfPath + "-post"
+		if _, err := os.Stat(postPath); err != nil {
+			postPath = filepath.Join(filepath.Dir(mfPath), "Machinefile-post")
+		}
 		if _, err := os.Stat(postPath); err == nil {
 			fmt.Printf("Running post-Machinefile (%s)...\n", postPath)
 			postRunner := &mf.SSHRunner{

@@ -25,6 +25,11 @@ func init() {
 		cmd.Stdin = nil
 		cmd.Stdout = nil
 		cmd.Stderr = nil
+		// Log child stderr to temp for debugging
+		if lf, _ := os.Create(filepath.Join(os.TempDir(), "ducttape-run.log")); lf != nil {
+			cmd.Stderr = lf
+			lf.Close()
+		}
 		cmd.Run()
 		os.Exit(0)
 	}
@@ -34,7 +39,7 @@ var runCommand = &cobra.Command{
 	Use:   "run <image>",
 	Short: "Run a VM from a built image",
 	Long: `Start a VM in the background from a previously built image.
-Use 'machine ps' to list running VMs and 'machine stop' to stop them.`,
+Use 'ducttape ps' to list running VMs and 'machine stop' to stop them.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
 			fmt.Fprintln(cmd.OutOrStderr(), "Error: image argument required")
@@ -69,7 +74,7 @@ Use 'machine ps' to list running VMs and 'machine stop' to stop them.`,
 			}
 		}
 
-		fullName := "machine-" + vmName
+		fullName := "ducttape-" + vmName
 
 		// If we're the re-exec'd child, run the VM (blocking).
 		if os.Getenv(envReExec) != "" {
@@ -107,6 +112,6 @@ Use 'machine ps' to list running VMs and 'machine stop' to stop them.`,
 		child.Process.Release()
 
 		fmt.Printf("VM %s started (pid %d)\n", fullName, pid)
-		fmt.Printf("  Use 'machine stop %s' to stop it.\n", vmName)
+		fmt.Printf("  Use 'ducttape stop %s' to stop it.\n", vmName)
 	},
 }

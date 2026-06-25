@@ -22,10 +22,10 @@ var pushCommand = &cobra.Command{
 	Short: "Push a built image to a registry as an OCI artifact",
 	Long: `Package a built QCOW2 disk image as an OCI artifact and push it.
 
-  machine push fedora-httpd
-      → ghcr.io/gbraad-dotfiles/fedora-httpd:latest
+  ducttape push fedora-httpd
+      → ghcr.io/ducttape-infra/cloud-images/fedora-httpd:latest
 
-  machine push myimage ghcr.io/myuser/myimage:tag`,
+  ducttape push myimage ghcr.io/myuser/myimage:tag`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tag := args[0]
@@ -40,7 +40,7 @@ var pushCommand = &cobra.Command{
 			ref = args[1]
 		} else {
 			name := strings.TrimSuffix(tag, ":latest")
-			ref = fmt.Sprintf("ghcr.io/gbraad-dotfiles/%s:latest", name)
+			ref = fmt.Sprintf("ghcr.io/ducttape-infra/cloud-images/%s:latest", name)
 		}
 
 		// Parse reference: strip docker:// prefix if present, split registry/repo:tag

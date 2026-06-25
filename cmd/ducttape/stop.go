@@ -17,7 +17,7 @@ var stopCommand = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStderr(), "Error: vm argument required")
 			os.Exit(1)
 		}
-		vm := "machine-" + strings.TrimPrefix(args[0], "machine-")
+		vm := "ducttape-" + strings.TrimPrefix(args[0], "ducttape-")
 		p := &MacadamProvisioner{}
 		if err := p.StopVM(vm); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "error stopping VM %s: %v\n", vm, err)

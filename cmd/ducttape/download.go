@@ -121,7 +121,7 @@ func pullFromRegistry(ref string, dest string) (string, error) {
 	}
 
 	if skopeoPath, err := exec.LookPath("skopeo"); err == nil && skopeoPath != "" {
-		tmpDir, _ := os.MkdirTemp("", "machine-pull-*")
+		tmpDir, _ := os.MkdirTemp("", "ducttape-pull-*")
 		defer os.RemoveAll(tmpDir)
 		dlURL := fmt.Sprintf("docker://%s/%s:%s", registry, repo, tag)
 		dirDest := fmt.Sprintf("dir:%s", tmpDir)
@@ -133,7 +133,7 @@ func pullFromRegistry(ref string, dest string) (string, error) {
 		return extractQCOWFromDir(tmpDir, manifest.Layers[0].Digest, dest)
 	}
 
-	tmpDir, _ := os.MkdirTemp("", "machine-pull-*")
+	tmpDir, _ := os.MkdirTemp("", "ducttape-pull-*")
 	defer os.RemoveAll(tmpDir)
 
 	for i, layer := range manifest.Layers {

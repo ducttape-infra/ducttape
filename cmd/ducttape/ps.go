@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// psCommand lists VMs managed by macadam (names with machine- prefix).
+// psCommand lists VMs managed by ducttape (names with ducttape- prefix).
 var psCommand = &cobra.Command{
 	Use:   "ps",
 	Short: "List running VMs",
@@ -24,10 +24,10 @@ var psCommand = &cobra.Command{
 				continue
 			}
 			machineName := strings.TrimSuffix(e.Name(), ".json")
-			if !strings.HasPrefix(machineName, "machine-") {
+			if !strings.HasPrefix(machineName, "ducttape-") {
 				continue
 			}
-			friendlyName := strings.TrimPrefix(machineName, "machine-")
+			friendlyName := strings.TrimPrefix(machineName, "ducttape-")
 			status := "Stopped"
 			if vmIsRunning(machineName) {
 				status = "Running"

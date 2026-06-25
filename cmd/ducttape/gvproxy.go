@@ -37,10 +37,10 @@ var gvproxyCommand = &cobra.Command{
 }
 
 // extractEmbeddedGVProxy writes the embedded gvproxy binary to the
-// machine home bin directory ($machineHome/bin/) and returns its path.
+// machine home bin directory ($ducttapeHome/bin/) and returns its path.
 // The caller (setupEnv) sets CONTAINERS_HELPER_BINARY_DIR to that dir.
 func extractEmbeddedGVProxy() (string, error) {
-	binDir := filepath.Join(machineHome, "bin")
+	binDir := filepath.Join(ducttapeHome, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return "", fmt.Errorf("create machine bin dir: %w", err)
 	}
