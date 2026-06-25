@@ -278,8 +278,10 @@ func humanSize(b int64) string {
 
 func resolveBaseImage(spec string) (string, error) {
 	// 1. Direct file path
-	if fi, err := os.Stat(spec); err == nil && !fi.IsDir() {
-		return spec, nil
+	for _, p := range []string{spec, spec + ".qcow2"} {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p, nil
+		}
 	}
 	// 2. registry: URL — pull directly
 	if strings.HasPrefix(spec, "registry:") {

@@ -189,8 +189,10 @@ func waitForSSHRoot(port int, password string, timeout time.Duration) error {
 // resolveImagePath looks for a QCOW2 image in: file path, baseImagesDir, imagesDir.
 // Returns empty string if not found anywhere.
 func resolveImagePath(name string) string {
-	if fi, err := os.Stat(name); err == nil && !fi.IsDir() {
-		return name
+	for _, p := range []string{name, name + ".qcow2"} {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p
+		}
 	}
 	for _, dir := range []string{baseImagesDir, imagesDir} {
 		candidate := filepath.Join(dir, name+".qcow2")

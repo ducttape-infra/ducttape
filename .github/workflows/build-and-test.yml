@@ -84,7 +84,7 @@ jobs:
       - name: Build image with ducttape
         id: build-image
         env:
-          IMAGE_TAG: fedora-httpd:latest
+          IMAGE_TAG: fedora-httpd
         run: |
           echo "Building image with:"
           echo "  IMAGE_TAG: $IMAGE_TAG"
@@ -101,7 +101,7 @@ jobs:
 
       - name: Run VM from built image
         env:
-          IMAGE_TAG: fedora-httpd:latest
+          IMAGE_TAG: fedora-httpd
           VM_NAME: fedora-httpd
         run: |
           echo "Running VM from $IMAGE_TAG..."
@@ -126,12 +126,12 @@ jobs:
 
       - name: Push image to registry
         env:
-          IMAGE_TAG: fedora-httpd:latest
+          IMAGE_TAG: fedora-httpd
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Pushing image..."
-          ./ducttape push fedora-httpd:latest
+          ./ducttape push fedora-httpd
 
       - name: Build derived image (FROM fedora-httpd)
         env:
