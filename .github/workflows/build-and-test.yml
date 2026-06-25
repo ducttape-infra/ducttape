@@ -30,11 +30,11 @@ jobs:
           repository: ducttape-infra/macadam
           path: macadam
 
-      - name: Checkout dotfiles upstream repo
+      - name: Checkout examples repo
         uses: actions/checkout@v4
         with:
-          repository: gbraad-dotfiles/upstream
-          path: upstream
+          repository: ducttape-infra/examples
+          path: examples
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -88,10 +88,10 @@ jobs:
         run: |
           echo "Building image with:"
           echo "  IMAGE_TAG: $IMAGE_TAG"
-          echo "  Machinefile: test/machinefiles/Machinefile.httpd"
+          echo "  Machinefile: examples/fedora-httpd/Machinefile.httpd"
           echo "  Base image (-d): fedora-cloud (alias -> HTTPS download -> qcow2)"
 
-          ./ducttape build -t "$IMAGE_TAG" -f test/machinefiles/Machinefile.httpd -d fedora-cloud --root-pass password
+          ./ducttape build -t "$IMAGE_TAG" -f examples/fedora-httpd/Machinefile.httpd -d fedora-cloud --root-pass password
 
           # Verify the image was created
           echo "=== Listing images after build ==="
@@ -138,7 +138,7 @@ jobs:
           ROOT_PASS: password
         run: |
           echo "=== Derived build ==="
-          ./ducttape build -t derived-httpd -f test/machinefiles/Machinefile.derived --root-pass "$ROOT_PASS"
+          ./ducttape build -t derived-httpd -f examples/fedora-httpd/Machinefile.derived --root-pass "$ROOT_PASS"
 
           echo "=== Run derived ==="
           ./ducttape run derived-httpd --name test-derived

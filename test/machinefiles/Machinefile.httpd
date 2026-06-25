@@ -1,8 +1,0 @@
-FROM fedora:42
-
-RUN dnf install -y httpd && \
-    dnf clean all && \
-    systemctl enable httpd
-
-ENTRYPOINT ["/sbin/init"]
-

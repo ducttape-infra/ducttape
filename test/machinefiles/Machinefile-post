@@ -1,5 +1,0 @@
-FROM scratch
-
-USER root
-
-RUN rm -f /etc/ssh/sshd_config.d/00-machine.conf

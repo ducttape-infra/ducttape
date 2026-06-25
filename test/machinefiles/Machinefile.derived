@@ -1,3 +1,0 @@
-FROM fedora-httpd
-
-RUN echo "Hello, Machine!" > /var/www/html/index.html

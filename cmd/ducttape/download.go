@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+const imageDefaultTag = "latest"
+
 // downloadBaseImage downloads a base image from a URL or OCI registry to the local cache.
 // Supported URL schemes:
 //
@@ -285,9 +287,11 @@ func resolveBaseImage(spec string) (string, error) {
 	}
 	// 3. Cached image in baseImagesDir or imagesDir
 	for _, dir := range []string{baseImagesDir, imagesDir} {
-		candidate := filepath.Join(dir, spec+".qcow2")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+		for _, name := range []string{spec, spec + ":" + imageDefaultTag} {
+			candidate := filepath.Join(dir, name+".qcow2")
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate, nil
+			}
 		}
 	}
 	// 4. Known alias
