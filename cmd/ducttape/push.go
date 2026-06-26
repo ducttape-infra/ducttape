@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"archive/tar"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -67,10 +69,33 @@ var pushCommand = &cobra.Command{
 			return fmt.Errorf("read disk: %w", err)
 		}
 
-		// Compress layer
+		// Uncompressed digest (for diff_ids in config)
+		uncompressedDigest := sha256.Sum256(diskData)
+		uncompressedDigestHex := hex.EncodeToString(uncompressedDigest[:])
+
+		// Build tar layer: disk.qcow2 inside a tar, gzip-compressed
+		// This matches what podman build produces from a Containerfile.
+		var tarBuf bytes.Buffer
+		tw := tar.NewWriter(&tarBuf)
+		hdr := &tar.Header{
+			Name:     "disk.qcow2",
+			Size:     int64(len(diskData)),
+			Mode:     0644,
+			ModTime:  time.Now(),
+			Format:   tar.FormatUSTAR,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return fmt.Errorf("tar header: %w", err)
+		}
+		if _, err := tw.Write(diskData); err != nil {
+			return fmt.Errorf("tar data: %w", err)
+		}
+		tw.Close()
+
+		// Gzip compress the tar
 		var compressed bytes.Buffer
 		gz := gzip.NewWriter(&compressed)
-		if _, err := io.Copy(gz, bytes.NewReader(diskData)); err != nil {
+		if _, err := io.Copy(gz, &tarBuf); err != nil {
 			return fmt.Errorf("compress: %w", err)
 		}
 		gz.Close()
@@ -78,12 +103,12 @@ var pushCommand = &cobra.Command{
 		layerDigest := sha256.Sum256(layerData)
 		layerDigestHex := hex.EncodeToString(layerDigest[:])
 
-		// Config blob
+		// Config blob (diff_ids must be uncompressed digest)
 		config := map[string]interface{}{
 			"config": map[string]interface{}{},
 			"rootfs": map[string]interface{}{
 				"type":    "layers",
-				"diff_ids": []string{"sha256:" + layerDigestHex},
+				"diff_ids": []string{"sha256:" + uncompressedDigestHex},
 			},
 		}
 		configData, _ := json.Marshal(config)

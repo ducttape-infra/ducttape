@@ -91,7 +91,7 @@ jobs:
           echo "  Machinefile: examples/fedora-httpd/Machinefile.httpd"
           echo "  Base image (-d): fedora-cloud (alias -> HTTPS download -> qcow2)"
 
-          ./ducttape build -t "$IMAGE_TAG" -f examples/fedora-httpd/Machinefile.httpd -d fedora-cloud --root-pass password
+          ./ducttape build -t "$IMAGE_TAG" -f examples/fedora-httpd/Machinefile.httpd -d fedora-cloud:42 --root-pass password
 
           # Verify the image was created
           echo "=== Listing images after build ==="

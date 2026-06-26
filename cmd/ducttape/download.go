@@ -64,7 +64,8 @@ func downloadBaseImage(spec string, cacheName string) (string, error) {
 		return pullFromRegistry(ref, dest)
 	}
 
-	return "", fmt.Errorf("unsupported image spec: %s", spec)
+	// Bare registry reference (e.g. ghcr.io/org/repo:tag) — treat as OCI pull
+	return pullFromRegistry(spec, dest)
 }
 
 // pullFromRegistry pulls an OCI image from a registry, extracts the disk image
@@ -283,11 +284,11 @@ func resolveBaseImage(spec string) (string, error) {
 			return p, nil
 		}
 	}
-	// 2. registry: URL — pull directly
+	// 2. registry: URL
 	if strings.HasPrefix(spec, "registry:") {
 		return downloadBaseImage(spec, filepath.Base(spec))
 	}
-	// 3. Cached image in baseImagesDir or imagesDir
+	// 3. Cached in baseImagesDir or imagesDir
 	for _, dir := range []string{baseImagesDir, imagesDir} {
 		for _, name := range []string{spec, spec + ":" + imageDefaultTag} {
 			candidate := filepath.Join(dir, name+".qcow2")
@@ -296,10 +297,21 @@ func resolveBaseImage(spec string) (string, error) {
 			}
 		}
 	}
-	// 4. Known alias
-	if url, ok := knownAliases[spec]; ok {
-		fmt.Printf("Resolved alias %q → %s\n", spec, url)
-		return downloadBaseImage(url, spec)
+	// 4. Known alias (with tag support: fedora-cloud:42 -> alias + tag)
+	baseName, tag := spec, ""
+	if colon := strings.LastIndex(spec, ":"); colon >= 0 && !strings.Contains(spec[colon:], "/") {
+		baseName = spec[:colon]
+		tag = spec[colon:]
 	}
-	return "", fmt.Errorf("base image %q not found (as file, in base images, built images, or known alias)", spec)
+	if url, ok := knownAliases[baseName]; ok {
+		fmt.Printf("Resolved alias %q\n", spec)
+		return downloadBaseImage(url+tag, baseName)
+	}
+	// 5. Default to registry lookup
+	fmt.Printf("Looking up %q from registry...\n", spec)
+	if tag == "" {
+		tag = ":latest"
+	}
+	return downloadBaseImage("registry:ghcr.io/ducttape-infra/cloud-images/"+baseName+tag, baseName)
 }
+
