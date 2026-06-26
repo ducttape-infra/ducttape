@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -55,7 +56,13 @@ var buildCommand = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStderr(), "Error: --base is required when no FROM is in the Machinefile")
 			os.Exit(1)
 		}
-		ensureDirs()
+		// Check if another VM is already running
+	if out, _ := exec.Command("pgrep", "-c", "-f", "qemu-system-x86").Output(); len(out) > 0 && out[0] > 48 {
+		fmt.Fprintf(cmd.OutOrStderr(), "Warning: Another VM appears to be running (qemu process exists).\n")
+		fmt.Fprintf(cmd.OutOrStderr(), "  Use 'ducttape ps' and 'ducttape stop <name>' to clean up.\n")
+	}
+
+	ensureDirs()
 	// Continuous zombie reaper: prevents QEMU/gvproxy zombies from
 	// hanging the goroutine's isProcessAlive loop.
 	go func() {

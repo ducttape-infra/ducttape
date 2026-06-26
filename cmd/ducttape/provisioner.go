@@ -21,34 +21,8 @@ import (
 // MacadamProvisioner implements Provisioner using the macadam Go library.
 type MacadamProvisioner struct{}
 
-func (m *MacadamProvisioner) CreateVM(name string, diskImage string, cpus string, memory string, diskSize string, username string, rootPass string, cloudInitPath string) error {
-	p, err := provider.GetProviderOrDefault("")
-	if err != nil {
-		return fmt.Errorf("failed to get VM provider: %w", err)
-	}
-	cpuVal, _ := strconv.Atoi(cpus)
-	memVal, _ := strconv.Atoi(memory)
-	diskSizeVal, _ := strconv.Atoi(diskSize)
-
-	puller := imagepullers.NewNoopImagePuller(name, p.VMType())
-	puller.SetSourceURI(diskImage)
-
-	// Generate SSH key pair
-	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".local", "share", "containers", "podman", "machine", name)
-	sshKeyPub := sshKeyPath + ".pub"
-	os.MkdirAll(filepath.Dir(sshKeyPath), 0o755)
-	keyCmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", sshKeyPath, "-N", "", "-q")
-	if err := keyCmd.Run(); err != nil {
-		// Key may already exist
-	}
-	pubKeyData, _ := os.ReadFile(sshKeyPub)
-	pubKey := strings.TrimSpace(string(pubKeyData))
-
-	// Write custom cloud-init user-data with /bin/sh (works on all distros)
-	ciDir := filepath.Join(os.TempDir(), "ducttape-ci-"+name)
-	os.MkdirAll(ciDir, 0o755)
-		// Minimal portable cloud-init
-		userData := fmt.Sprintf(`#cloud-config
+func fallbackGenerateDefaultCloudInit(ciDir, name, username, pubKey, rootPass string) {
+	userData := fmt.Sprintf(`#cloud-config
 ssh_pwauth: true
 users:
   - name: %s
@@ -62,8 +36,52 @@ chpasswd:
     - root:%s
 `, username, pubKey, rootPass)
 	os.WriteFile(filepath.Join(ciDir, "user-data"), []byte(userData), 0o644)
-	// meta-data is required by cloud-init
 	os.WriteFile(filepath.Join(ciDir, "meta-data"), []byte("instance-id: ducttape-"+name+"\n"), 0o644)
+}
+
+
+
+func (m *MacadamProvisioner) CreateVM(name string, diskImage string, cpus string, memory string, diskSize string, username string, rootPass string, cloudInitPath string) error {
+	p, err := provider.GetProviderOrDefault("")
+	if err != nil {
+		return fmt.Errorf("failed to get VM provider: %w", err)
+	}
+	cpuVal, _ := strconv.Atoi(cpus)
+	memVal, _ := strconv.Atoi(memory)
+	diskSizeVal, _ := strconv.Atoi(diskSize)
+
+	puller := imagepullers.NewNoopImagePuller(name, p.VMType())
+	puller.SetSourceURI(diskImage)
+
+	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".local", "share", "containers", "podman", "machine", name)
+
+	sshKeyPub := sshKeyPath + ".pub"
+	os.MkdirAll(filepath.Dir(sshKeyPath), 0o755)
+	keyCmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", sshKeyPath, "-N", "", "-q")
+	if err := keyCmd.Run(); err != nil {
+		// Key may already exist
+	}
+	pubKeyData, _ := os.ReadFile(sshKeyPub)
+	pubKey := strings.TrimSpace(string(pubKeyData))
+
+	// Write custom cloud-init user-data with /bin/sh (works on all distros)
+	ciDir := filepath.Join(os.TempDir(), "ducttape-ci-"+name)
+	os.MkdirAll(ciDir, 0o755)
+		// Use custom cloud-init if provided
+	// Use custom cloud-init if provided
+	if cloudInitPath != "" {
+		data, err := os.ReadFile(cloudInitPath)
+		if err == nil {
+			fmt.Printf("  Using custom cloud-init from %s\n", cloudInitPath)
+			os.WriteFile(filepath.Join(ciDir, "user-data"), data, 0o644)
+			os.WriteFile(filepath.Join(ciDir, "meta-data"), []byte("instance-id: ducttape-"+name+"\n"), 0o644)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v, using default\n", cloudInitPath, err)
+			fallbackGenerateDefaultCloudInit(ciDir, name, username, pubKey, rootPass)
+		}
+	} else {
+		fallbackGenerateDefaultCloudInit(ciDir, name, username, pubKey, rootPass)
+	}
 
 	opts := define.InitOptions{
 		Name:           name,
