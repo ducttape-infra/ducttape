@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	mf "github.com/machinefile/machinefile/pkg/machinefile"
@@ -32,6 +31,7 @@ var buildCommand = &cobra.Command{
 		provisionerName, _ := cmd.Flags().GetString("provisioner")
 		rootPass := cmd.Flags().Lookup("root-pass").Value.String()
 	cloudInitPath, _ := cmd.Flags().GetString("cloudinit")
+	debugMode, _ = cmd.Flags().GetBool("debug")
 		userPass := cmd.Flags().Lookup("user-pass").Value.String()
 	vmUser := imageUser
 		if u, _ := cmd.Flags().GetString("user"); u != "" {
@@ -63,20 +63,6 @@ var buildCommand = &cobra.Command{
 	}
 
 	ensureDirs()
-	// Continuous zombie reaper: prevents QEMU/gvproxy zombies from
-	// hanging the goroutine's isProcessAlive loop.
-	go func() {
-		for {
-			for {
-				var ws syscall.WaitStatus
-				pid, err := syscall.Wait4(-1, &ws, syscall.WNOHANG, nil)
-				if pid <= 0 || err != nil {
-					break
-				}
-			}
-			time.Sleep(2 * time.Second)
-		}
-	}()
 
 	cleanup := setupEnv(cmd)
 		defer cleanup()
@@ -140,7 +126,7 @@ var buildCommand = &cobra.Command{
 			preRunner := &mf.SSHRunner{
 				BaseDir:    ".",
 				SshHost:    "localhost",
-				SshUser:    info.SSHUser, // provisioned user (fedora)
+				SshUser:    info.SSHUser,
 				SshPort:    strconv.Itoa(info.SSHPort),
 				SshKeyPath: info.SSHKeyPath,
 			}
@@ -152,10 +138,10 @@ var buildCommand = &cobra.Command{
 				fmt.Fprintf(cmd.OutOrStderr(), "pre-Machinefile failed: %v\n", err)
 				os.Exit(1)
 			}
-			// sshd was restarted by pre; give it a moment
 			time.Sleep(2 * time.Second)
+		} else {
+			fmt.Println("  (no pre-Machinefile found)")
 		}
-
 		// --- Phase 2: main Machinefile as root -------------------------
 		fmt.Printf("Executing %s as root...\n", mfPath)
 		rootRunner := &mf.SSHRunner{
@@ -189,8 +175,9 @@ var buildCommand = &cobra.Command{
 				fmt.Fprintf(cmd.OutOrStderr(), "post-Machinefile failed: %v\n", err)
 				os.Exit(1)
 			}
+		} else {
+			fmt.Println("  (no post-Machinefile found)")
 		}
-
 		// --- Stop VM and copy disk ------------------------------------
 		fmt.Println("Stopping VM...")
 		if err := p.StopVM(tmpName); err != nil {

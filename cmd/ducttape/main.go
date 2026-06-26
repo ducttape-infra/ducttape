@@ -52,9 +52,10 @@ func main() {
 	buildCommand.Flags().StringP("tag", "t", "", "Tag name for the resulting image")
 	buildCommand.Flags().StringP("file", "f", "", "Path to the Machinefile")
 	buildCommand.Flags().StringP("base", "d", "", "Base image (path or tag)")
-	buildCommand.Flags().StringP("provisioner", "p", "macadam", "Provisioner to use (macadam|lima)")
+	buildCommand.Flags().StringP("provisioner", "p", "lima", "Provisioner to use (lima|macadam)")
 	buildCommand.Flags().StringP("user", "u", "", "Cloud-init username (default: $USER)")
 	buildCommand.Flags().String("cloudinit", "", "Path to custom cloud-init user-data file")
+	buildCommand.Flags().Bool("debug", false, "Enable verbose debug output")
 	buildCommand.Flags().StringP("root-pass", "", defaultRootPass, "Root password for SSH (default: "+defaultRootPass+")")
 	buildCommand.Flags().StringP("user-pass", "", defaultUserPass, "User password for SSH (default: "+defaultUserPass+")")
 
@@ -64,7 +65,7 @@ func main() {
 	runCommand.Flags().StringP("cpus", "c", "", "Number of CPUs")
 	runCommand.Flags().StringP("memory", "m", "", "Memory in MB")
 	runCommand.Flags().StringP("disk-size", "s", "", "Disk size in GB")
-	runCommand.Flags().StringP("provisioner", "p", "macadam", "Provisioner to use (macadam|lima)")
+	runCommand.Flags().StringP("provisioner", "p", "lima", "Provisioner to use (lima|macadam)")
 
 	rootCmd.AddCommand(buildCommand)
 	rootCmd.AddCommand(runCommand)
