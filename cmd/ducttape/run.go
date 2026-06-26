@@ -51,6 +51,10 @@ Use 'ducttape ps' to list running VMs and 'machine stop' to stop them.`,
 		memory, _ := cmd.Flags().GetString("memory")
 		diskSize, _ := cmd.Flags().GetString("disk-size")
 		provisionerName, _ := cmd.Flags().GetString("provisioner")
+		vmUser := imageUser
+		if u, _ := cmd.Flags().GetString("user"); u != "" {
+			vmUser = u
+		}
 
 		if vmName == "" {
 			vmName = image
@@ -90,7 +94,7 @@ Use 'ducttape ps' to list running VMs and 'machine stop' to stop them.`,
 			default:
 				os.Exit(1)
 			}
-			if err := p.CreateVM(fullName, diskPath, cpus, memory, diskSize, "fedora"); err != nil {
+			if err := p.CreateVM(fullName, diskPath, cpus, memory, diskSize, vmUser); err != nil {
 				os.Exit(1)
 			}
 			p.StartVM(fullName)

@@ -159,6 +159,7 @@ func copyFile(src, dst string) error {
 }
 
 // vmIsRunning checks whether a QEMU process for the given VM name exists.
+
 func vmIsRunning(name string) bool {
 	out, err := exec.Command("pgrep", "-f", "qemu.*"+name).Output()
 	return err == nil && len(out) > 0

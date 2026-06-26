@@ -110,6 +110,14 @@ func pullFromRegistry(ref string, dest string) (string, error) {
 	}
 	defer manResp.Body.Close()
 
+	if manResp.StatusCode == http.StatusNotFound {
+		return "", fmt.Errorf("tag %q not found on registry", tag)
+	}
+	if manResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(manResp.Body)
+		return "", fmt.Errorf("manifest: %s: %s", manResp.Status, string(body))
+	}
+
 	var manifest struct {
 		Layers []struct {
 			Digest    string `json:"digest"`

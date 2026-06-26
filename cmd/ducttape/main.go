@@ -12,6 +12,7 @@ import (
 
 var (
 	userHomeDir   = os.Getenv("HOME")
+		imageUser     = os.Getenv("USER")
 	ducttapeHome   = userHomeDir + "/.local/share/ducttape"
 	baseImagesDir = ducttapeHome + "/base-images"
 	imagesDir     = ducttapeHome + "/images"
@@ -52,10 +53,12 @@ func main() {
 	buildCommand.Flags().StringP("file", "f", "", "Path to the Machinefile")
 	buildCommand.Flags().StringP("base", "d", "", "Base image (path or tag)")
 	buildCommand.Flags().StringP("provisioner", "p", "macadam", "Provisioner to use (macadam|lima)")
+	buildCommand.Flags().StringP("user", "u", "", "Cloud-init username (default: $USER)")
 	buildCommand.Flags().StringP("root-pass", "", defaultRootPass, "Root password for SSH (default: "+defaultRootPass+")")
 	buildCommand.Flags().StringP("user-pass", "", defaultUserPass, "User password for SSH (default: "+defaultUserPass+")")
 
 	runCommand.Flags().StringP("name", "n", "", "Name for the VM (optional)")
+	runCommand.Flags().StringP("user", "u", "", "Cloud-init username (default: $USER)")
 	runCommand.Flags().StringP("cpus", "c", "", "Number of CPUs")
 	runCommand.Flags().StringP("memory", "m", "", "Memory in MB")
 	runCommand.Flags().StringP("disk-size", "s", "", "Disk size in GB")

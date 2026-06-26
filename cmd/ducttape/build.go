@@ -31,6 +31,10 @@ var buildCommand = &cobra.Command{
 		provisionerName, _ := cmd.Flags().GetString("provisioner")
 		rootPass := cmd.Flags().Lookup("root-pass").Value.String()
 		userPass := cmd.Flags().Lookup("user-pass").Value.String()
+	vmUser := imageUser
+		if u, _ := cmd.Flags().GetString("user"); u != "" {
+			vmUser = u
+		}
 
 		if tag == "" {
 			fmt.Fprintln(cmd.OutOrStderr(), "Error: --tag is required")
@@ -88,7 +92,7 @@ var buildCommand = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := p.CreateVM(tmpName, basePath, "2", "2048", "10", "fedora"); err != nil {
+		if err := p.CreateVM(tmpName, basePath, "2", "2048", "10", vmUser); err != nil {
 			fmt.Fprintf(cmd.OutOrStderr(), "%s init failed: %v\n", provisionerName, err)
 			os.Exit(1)
 		}
