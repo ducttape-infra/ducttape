@@ -33,6 +33,16 @@ func downloadBaseImage(spec string, cacheName string) (string, error) {
 		return dest, nil
 	}
 
+	// Dangling symlink: os.Stat fails but os.Create can't write through one either.
+	if _, err := os.Lstat(dest); err == nil {
+		os.Remove(dest)
+	}
+
+	// Dangling symlink: os.Stat fails but os.Create can't write through one either.
+	if _, err := os.Lstat(dest); err == nil {
+		os.Remove(dest)
+	}
+
 	if strings.HasPrefix(spec, "file://") {
 		src := strings.TrimPrefix(spec, "file://")
 		if err := copyFile(src, dest); err != nil {
