@@ -8,6 +8,9 @@ on:
     branches:
       - '**'
 
+env:
+  DUCTTAPE_PROVISIONER: "macadam"
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -91,7 +94,7 @@ jobs:
           echo "  Machinefile: examples/fedora-httpd/Machinefile.httpd"
           echo "  Base image (-d): fedora-cloud (alias -> HTTPS download -> qcow2)"
 
-          ./ducttape build -p macadam -t "$IMAGE_TAG" -f examples/fedora-httpd/Machinefile.httpd -d fedora-cloud:42 --root-pass password
+          ./ducttape build -t "$IMAGE_TAG" -f examples/fedora-httpd/Machinefile.httpd -d fedora-cloud:42 --root-pass password
 
           # Verify the image was created
           echo "=== Listing images after build ==="
@@ -105,7 +108,7 @@ jobs:
           VM_NAME: fedora-httpd
         run: |
           echo "Running VM from $IMAGE_TAG..."
-          ./ducttape -p macadam run "$IMAGE_TAG" --name "$VM_NAME"
+          ./ducttape run "$IMAGE_TAG" --name "$VM_NAME"
 
           echo "Waiting for SSH..."
           for i in $(seq 1 30); do
