@@ -105,14 +105,19 @@ Use 'ducttape ps' to list running VMs and 'ducttape stop' to stop them.`,
 			if err := p.CreateVM(fullName, diskPath, cpus, memory, diskSize, vmUser, rootPass, ""); err != nil {
 				os.Exit(1)
 			}
-
-			// Insert port forwards into Lima YAML before starting
-			if provisionerName == "lima" && len(publish) > 0 {
-				if err := addLimaPortForwards(fullName, publish); err != nil {
-					fmt.Fprintf(cmd.OutOrStderr(), "port forward setup failed: %v\n", err)
-					os.Exit(1)
+				// Insert port forwards and mounts into Lima YAML before starting
+				if provisionerName == "lima" && len(publish) > 0 {
+					if err := addLimaPortForwards(fullName, publish); err != nil {
+						fmt.Fprintf(cmd.OutOrStderr(), "port forward setup failed: %v\n", err)
+						os.Exit(1)
+					}
 				}
-			}
+				if provisionerName == "lima" && len(mountSpecs) > 0 {
+					if err := addLimaMounts(fullName, mountSpecs); err != nil {
+						fmt.Fprintf(cmd.OutOrStderr(), "mount setup failed: %v\n", err)
+						os.Exit(1)
+					}
+				}
 
 			p.StartVM(fullName)
 			return
@@ -164,6 +169,33 @@ func addLimaPortForwards(name string, publish []string) error {
 	}
 
 	block := "\nportForwards:\n" + strings.Join(pfLines, "\n") + "\n"
+	data = append(data, []byte(block)...)
+	return os.WriteFile(limaYAML, data, 0o644)
+}
+
+// addLimaMounts inserts a mounts block into the Lima instance YAML.
+// mount entries are in "/host/path" or "/host/path:/guest/path" format.
+func addLimaMounts(name string, mountSpecs []string) error {
+	limaYAML := filepath.Join(os.Getenv("HOME"), ".lima", name, "lima.yaml")
+	data, err := os.ReadFile(limaYAML)
+	if err != nil {
+		return fmt.Errorf("read lima yaml: %w", err)
+	}
+
+	var mountLines []string
+	for _, entry := range mountSpecs {
+		parts := strings.SplitN(entry, ":", 2)
+		hostPath := parts[0]
+		guestPath := hostPath
+		if len(parts) == 2 {
+			guestPath = parts[1]
+		}
+		mountLines = append(mountLines, fmt.Sprintf(`  - location: %s
+    mountPoint: %s
+    writable: true`, hostPath, guestPath))
+	}
+
+	block := "\nmounts:\n" + strings.Join(mountLines, "\n") + "\n"
 	data = append(data, []byte(block)...)
 	return os.WriteFile(limaYAML, data, 0o644)
 }

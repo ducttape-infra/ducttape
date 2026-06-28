@@ -117,6 +117,14 @@ var buildCommand = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Insert mounts into Lima YAML before starting
+		if provisionerName == "lima" && len(mountSpecs) > 0 {
+			if err := addLimaMounts(tmpName, mountSpecs); err != nil {
+				fmt.Fprintf(cmd.OutOrStderr(), "mount setup failed: %v\n", err)
+				os.Exit(1)
+			}
+		}
+
 		// StartVM launches QEMU and blocks until it exits, so run it in
 		// the background.
 		go func() {

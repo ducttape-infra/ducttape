@@ -20,6 +20,8 @@ var (
 	defaultProv    = os.Getenv("DUCTTAPE_PROVISIONER")
 )
 
+var mountSpecs []string
+
 func init() {
 	if defaultProv == "" {
 		defaultProv = "lima"
@@ -27,6 +29,7 @@ func init() {
 }
 
 // init initializes Viper configuration and random seed.
+
 func init() {
 	v := viper.New()
 	v.SetConfigName("ducttape")
@@ -64,6 +67,8 @@ func main() {
 	buildCommand.Flags().String("cloudinit", "", "Path to custom cloud-init user-data file")
 	buildCommand.Flags().Bool("debug", false, "Enable verbose debug output")
 	buildCommand.Flags().StringP("root-pass", "", defaultRootPass, "Root password for SSH (default: "+defaultRootPass+")")
+	buildCommand.Flags().StringSliceVarP(&mountSpecs, "volume", "v", nil, "Mount a host directory (-v /src:/dest)")
+	buildCommand.Flags().StringSliceVar(&mountSpecs, "mount", nil, "Alias for --volume")
 	buildCommand.Flags().StringP("user-pass", "", defaultUserPass, "User password for SSH (default: "+defaultUserPass+")")
 
 	runCommand.Flags().StringP("name", "n", "", "Name for the VM (optional)")
@@ -72,6 +77,8 @@ func main() {
 	runCommand.Flags().StringP("cpus", "c", "", "Number of CPUs")
 	runCommand.Flags().StringP("memory", "m", "", "Memory in MB")
 	runCommand.Flags().StringP("disk-size", "s", "", "Disk size in GB")
+	runCommand.Flags().StringSliceVarP(&mountSpecs, "volume", "v", nil, "Mount a host directory (-v /src:/dest)")
+	runCommand.Flags().StringSliceVar(&mountSpecs, "mount", nil, "Alias for --volume")
 	runCommand.Flags().StringP("provisioner", "p", defaultProv, "Provisioner to use (lima|macadam)")
 	runCommand.Flags().StringSliceP("publish", "", nil, "Publish a port (host:guest, e.g. 8080:80)")
 
