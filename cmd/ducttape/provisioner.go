@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	di "ducttape/pkg/ducttape"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -238,7 +239,7 @@ func (m *MacadamProvisioner) RemoveVM(name string) error {
 	return nil
 }
 
-func (m *MacadamProvisioner) SSHInfo(name string) (*VMInfo, error) {
+func (m *MacadamProvisioner) SSHInfo(name string) (*di.VMInfo, error) {
 	p, err := provider.GetProviderOrDefault("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VM provider: %w", err)
@@ -255,7 +256,7 @@ func (m *MacadamProvisioner) SSHInfo(name string) (*VMInfo, error) {
 	if strings.HasPrefix(identity, "~/") {
 		identity = filepath.Join(os.Getenv("HOME"), identity[2:])
 	}
-	return &VMInfo{
+	return &di.VMInfo{
 		Name:       name,
 		SSHPort:    mc.SSH.Port,
 		SSHUser:    mc.SSH.RemoteUsername,

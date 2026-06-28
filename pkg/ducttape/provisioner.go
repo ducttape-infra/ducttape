@@ -1,4 +1,4 @@
-package main
+package ducttape
 
 import (
 	"fmt"
@@ -7,15 +7,10 @@ import (
 
 // Provisioner abstracts the VM provisioner (macadam, lima, etc.)
 type Provisioner interface {
-	// CreateVM creates a VM with the given parameters.
 	CreateVM(name string, diskImage string, cpus string, memory string, diskSize string, username string, rootPass string, cloudInitPath string) error
-	// StartVM starts the VM.
 	StartVM(name string) error
-	// StopVM stops the VM.
 	StopVM(name string) error
-	// RemoveVM removes the VM.
 	RemoveVM(name string) error
-	// SSHInfo returns connection info for the VM.
 	SSHInfo(name string) (*VMInfo, error)
 }
 
@@ -27,22 +22,10 @@ type VMInfo struct {
 	SSHKeyPath string
 }
 
-// provisionerForName returns a Provisioner for the given name.
-func provisionerForName(name string) Provisioner {
+// ValidateProvisioner checks that the required binary is available.
+func ValidateProvisioner(name string) error {
 	switch name {
 	case "macadam":
-		return &MacadamProvisioner{}
-	default:
-		return &LimaProvisioner{}
-	}
-}
-
-// validateProvisioner checks that the required binary is available
-// before any expensive operations (downloads, VM creation).
-func validateProvisioner(name string) error {
-	switch name {
-	case "macadam":
-		// macadam is used as a Go library -- no external binary needed
 		return nil
 	case "lima":
 		if _, err := exec.LookPath("limactl"); err != nil {

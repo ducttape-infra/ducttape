@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	di "ducttape/pkg/ducttape"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -79,7 +80,7 @@ func (l *LimaProvisioner) RemoveVM(name string) error {
 	return runCmd("limactl", "delete", "-f", name)
 }
 
-func (l *LimaProvisioner) SSHInfo(name string) (*VMInfo, error) {
+func (l *LimaProvisioner) SSHInfo(name string) (*di.VMInfo, error) {
 	user := os.Getenv("USER")
 	identity := filepath.Join(os.Getenv("HOME"), ".lima", "_config", "user")
 	port := 0
@@ -99,7 +100,7 @@ func (l *LimaProvisioner) SSHInfo(name string) (*VMInfo, error) {
 		return nil, fmt.Errorf("could not determine SSH port for lima instance %s (is it running?)", name)
 	}
 
-	return &VMInfo{
+	return &di.VMInfo{
 		Name:       name,
 		SSHPort:    port,
 		SSHUser:    user,

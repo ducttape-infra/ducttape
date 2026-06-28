@@ -1,6 +1,7 @@
 package main
 
 import (
+
 	"fmt"
 	"math/rand"
 	"os"
@@ -22,6 +23,8 @@ var (
 
 var mountSpecs []string
 
+var version = "dev"
+
 func init() {
 	if defaultProv == "" {
 		defaultProv = "lima"
@@ -29,6 +32,7 @@ func init() {
 }
 
 // init initializes Viper configuration and random seed.
+
 
 func init() {
 	v := viper.New()
@@ -52,11 +56,13 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "ducttape",
-		Short: "Machine CLI for managing cloud-init based VM images",
-		Long:  `Ducttape provides a Docker-like workflow for building and running VM images using Machinefiles.`,
+		Use:     "ducttape",
+		Short:   "Machine CLI for managing cloud-init based VM images",
+		Long:    `Ducttape provides a Docker-like workflow for building and running VM images using Machinefiles.`,
+		Version: version,
 	}
 
 	buildCommand.Flags().StringP("tag", "t", "", "Tag name for the resulting image")

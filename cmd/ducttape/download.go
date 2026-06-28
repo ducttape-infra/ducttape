@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	di "ducttape/pkg/ducttape"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -335,7 +336,7 @@ func resolveBaseImage(spec string) (string, error) {
 		baseName = spec[:colon]
 		tag = spec[colon:]
 	}
-	if url, ok := knownAliases[baseName]; ok {
+	if url, ok := di.KnownAliases[baseName]; ok {
 		fmt.Printf("Resolved alias %q\n", spec)
 		return downloadBaseImage(url+tag, baseName)
 	}

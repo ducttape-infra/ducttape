@@ -2,7 +2,7 @@ BUILD_DIR ?= out
 BINARY_NAME ?= ducttape
 
 GO_BUILDFLAGS ?= -buildvcs=false
-LDFLAGS ?= -s -w
+LDFLAGS ?= -s -w -X main.version=$(shell cat VERSION)
 
 GVPROXY_VERSION ?= v0.8.7
 GVPROXY_DOWNLOAD_BASEURL := https://github.com/containers/gvisor-tap-vsock/releases/download/$(GVPROXY_VERSION)

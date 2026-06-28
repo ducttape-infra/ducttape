@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
 )
 
@@ -25,4 +26,14 @@ var stopCommand = &cobra.Command{
 		}
 		fmt.Printf("Stopped VM %s\n", vm)
 	},
+}
+
+// provisionerForName returns a Provisioner for the given name.
+func provisionerForName(name string) di.Provisioner {
+	switch name {
+	case "macadam":
+		return &MacadamProvisioner{}
+	default:
+		return &LimaProvisioner{}
+	}
 }

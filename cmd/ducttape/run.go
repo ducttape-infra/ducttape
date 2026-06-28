@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 
+	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
 )
 
@@ -93,7 +94,7 @@ Use 'ducttape ps' to list running VMs and 'ducttape stop' to stop them.`,
 			rootPass, _ := cmd.Flags().GetString("root-pass")
 			cleanup := setupEnv(cmd)
 			defer cleanup()
-			var p Provisioner
+			var p di.Provisioner
 			switch provisionerName {
 			case "macadam":
 				p = &MacadamProvisioner{}

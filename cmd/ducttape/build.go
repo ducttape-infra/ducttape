@@ -12,6 +12,7 @@ import (
 	"time"
 
 	mf "github.com/machinefile/machinefile/pkg/machinefile"
+	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +63,7 @@ var buildCommand = &cobra.Command{
 		if baseSpec == "" {
 			return fmt.Errorf("--base is required when no FROM is in the Machinefile")
 		}
-		if err := validateProvisioner(provisionerName); err != nil {
+		if err := di.ValidateProvisioner(provisionerName); err != nil {
 			return err
 		}
 
@@ -76,7 +77,7 @@ var buildCommand = &cobra.Command{
 		}
 
 		tmpName := "ducttape-build-" + randomString(6)
-		var p Provisioner
+		var p di.Provisioner
 		vmCleanup := func() {
 			if p != nil {
 				p.RemoveVM(tmpName)
@@ -135,7 +136,11 @@ var buildCommand = &cobra.Command{
 				"USER":        info.SSHUser,
 			}
 			if err := mf.ParseAndRunDockerfile(prePath, preRunner, preArgs); err != nil {
-				return fmt.Errorf("pre-Machinefile failed: %w", err)
+				// sshd restart drops the SSH connection (exit 255) -- reconnect
+				fmt.Println("  (reconnecting after sshd restart...)")
+				if err := waitForSSH(info, 30*time.Second); err != nil {
+					return fmt.Errorf("pre-Machinefile failed: %w", err)
+				}
 			}
 			time.Sleep(2 * time.Second)
 		} else {
@@ -260,7 +265,7 @@ func readFromLine(path string) string {
 	return ""
 }
 
-func waitForSSHInfo(name string, p Provisioner, timeout time.Duration) (*VMInfo, error) {
+func waitForSSHInfo(name string, p di.Provisioner, timeout time.Duration) (*di.VMInfo, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		info, err := p.SSHInfo(name)

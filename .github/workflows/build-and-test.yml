@@ -75,7 +75,7 @@ jobs:
       - name: Build ducttape binary
         run: |
           go version
-          go build -o ducttape ./cmd/ducttape
+          go build -ldflags="-X main.version=$(cat VERSION)" -o ducttape ./cmd/ducttape
           ls -l ducttape
 
       - name: Verify binary builds & shows help

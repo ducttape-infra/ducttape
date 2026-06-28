@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
 )
 
@@ -88,7 +89,7 @@ func ensureDirs() {
 }
 
 // readSSHInfo reads the macadam config JSON for a VM and returns its SSH info.
-func readSSHInfo(vmName string) (*VMInfo, error) {
+func readSSHInfo(vmName string) (*di.VMInfo, error) {
 	path := filepath.Join(configDir, vmName+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -111,7 +112,7 @@ func readSSHInfo(vmName string) (*VMInfo, error) {
 	if strings.HasPrefix(identity, "~/") {
 		identity = filepath.Join(os.Getenv("HOME"), identity[2:])
 	}
-	return &VMInfo{
+	return &di.VMInfo{
 		Name:       vmName,
 		SSHPort:    config.SSH.Port,
 		SSHUser:    config.SSH.RemoteUsername,
@@ -128,7 +129,7 @@ func runCmd(name string, arg ...string) error {
 }
 
 // waitForSSH polls SSH connectivity until the VM is ready or a timeout expires.
-func waitForSSH(info *VMInfo, timeout time.Duration) error {
+func waitForSSH(info *di.VMInfo, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		cmd := exec.Command("ssh", "-i", info.SSHKeyPath, "-p", strconv.Itoa(info.SSHPort),

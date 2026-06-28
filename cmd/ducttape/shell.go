@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 
+	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +27,7 @@ var shellCommand = &cobra.Command{
 		vmName := "ducttape-" + strings.TrimPrefix(args[0], "ducttape-")
 
 		// Try Lima first, then macadam
-		var info *VMInfo
+		var info *di.VMInfo
 		var err error
 		if _, lookErr := exec.LookPath("limactl"); lookErr == nil {
 			info, err = (&LimaProvisioner{}).SSHInfo(vmName)

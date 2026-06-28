@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +34,7 @@ A symlink from the short name (e.g. fedora-cloud.qcow2) points to it.
 			tag = spec[colon:]
 		}
 
-		url, ok := knownAliases[baseName]
+		url, ok := di.KnownAliases[baseName]
 		if !ok {
 			return fmt.Errorf("unknown alias %q", baseName)
 		}
