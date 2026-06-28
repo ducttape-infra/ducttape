@@ -136,11 +136,7 @@ var buildCommand = &cobra.Command{
 				"USER":        info.SSHUser,
 			}
 			if err := mf.ParseAndRunDockerfile(prePath, preRunner, preArgs); err != nil {
-				// sshd restart drops the SSH connection (exit 255) -- reconnect
-				fmt.Println("  (reconnecting after sshd restart...)")
-				if err := waitForSSH(info, 30*time.Second); err != nil {
-					return fmt.Errorf("pre-Machinefile failed: %w", err)
-				}
+				return fmt.Errorf("pre-Machinefile failed: %w", err)
 			}
 			time.Sleep(2 * time.Second)
 		} else {
