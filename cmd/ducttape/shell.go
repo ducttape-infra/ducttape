@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	di "ducttape/pkg/ducttape"
 	"github.com/spf13/cobra"
@@ -26,17 +27,18 @@ var shellCommand = &cobra.Command{
 		}
 		vmName := "ducttape-" + strings.TrimPrefix(args[0], "ducttape-")
 
-		// Try Lima first, then macadam
+		// Let LimaProvisioner.SSHInfo handle detection (limactl path, etc.)
 		var info *di.VMInfo
 		var err error
-		if _, lookErr := exec.LookPath("limactl"); lookErr == nil {
+		for i := 0; i < 12; i++ {
 			info, err = (&LimaProvisioner{}).SSHInfo(vmName)
+			if err == nil && info != nil && info.SSHPort > 0 {
+				break
+			}
+			time.Sleep(5 * time.Second)
 		}
-		if info == nil || err != nil {
-			info, err = readSSHInfo(vmName)
-		}
-		if err != nil {
-			return fmt.Errorf("VM %s not found or not running: %w", args[0], err)
+		if err != nil || info == nil || info.SSHPort == 0 {
+			return fmt.Errorf("VM %s not found or not running (try 'ducttape ps')", args[0])
 		}
 
 		sshArgs := []string{
