@@ -115,8 +115,9 @@ var buildCommand = &cobra.Command{
 			return fmt.Errorf("timeout waiting for SSH: %w", err)
 		}
 		fmt.Println("VM ready.")
+	time.Sleep(5 * time.Second)
 
-		prePath := mfPath + "-pre"
+	prePath := mfPath + "-pre"
 		if _, err := os.Stat(prePath); err != nil {
 			prePath = filepath.Join(filepath.Dir(mfPath), "Machinefile-pre")
 		}

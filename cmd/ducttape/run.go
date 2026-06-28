@@ -182,6 +182,11 @@ func addLimaMounts(name string, mountSpecs []string) error {
 		return fmt.Errorf("read lima yaml: %w", err)
 	}
 
+	// Remove existing empty mounts key to avoid YAML duplicate
+	s := string(data)
+	s = strings.ReplaceAll(s, "\nmounts: []\n", "\n")
+	data = []byte(s)
+
 	var mountLines []string
 	for _, entry := range mountSpecs {
 		parts := strings.SplitN(entry, ":", 2)
