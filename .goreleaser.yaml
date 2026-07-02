@@ -1,0 +1,57 @@
+version: 2
+
+project_name: ducttape
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: ducttape
+    main: ./cmd/ducttape
+    binary: ducttape
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: binary
+    format: binary
+    name_template: "{{ .Binary }}-{{ .Os }}-{{ .Arch }}"
+
+nfpms:
+  - id: packages
+    package_name: ducttape
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: Ducttape Infra
+    homepage: https://github.com/ducttape-infra/ducttape
+    maintainer: Ducttape Infra <developers@ducttape-infra.org>
+    description: |-
+      Build, run, and share VM images using a Docker-like workflow.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/sbin
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/licenses/ducttape/LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
