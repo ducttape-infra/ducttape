@@ -4,8 +4,6 @@ BINARY_NAME ?= ducttape
 GO_BUILDFLAGS ?= -buildvcs=false
 LDFLAGS ?= -s -w -X main.version=$(shell cat VERSION)
 
-GVPROXY_VERSION ?= v0.8.7
-GVPROXY_DOWNLOAD_BASEURL := https://github.com/containers/gvisor-tap-vsock/releases/download/$(GVPROXY_VERSION)
 
 .PHONY: all
 all: build
@@ -32,8 +30,8 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 .PHONY: build
-build: download-gvproxy tidy $(BUILD_DIR)
-	CGO_ENABLED=1 go build $(GO_BUILDFLAGS) -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/ducttape/
+build: $(BUILD_DIR)
+	CGO_ENABLED=0 go build $(GO_BUILDFLAGS) -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/ducttape/
 
 .PHONY: cross
 cross: $(BUILD_DIR)
