@@ -54,9 +54,12 @@ Use 'ducttape ps' to list running VMs and 'ducttape stop' to stop them.`,
 
 		diskPath := filepath.Join(imagesDir, image+".qcow2")
 		if fi, err := os.Stat(diskPath); err != nil || fi.IsDir() {
-			diskPath = image
-			if fi, err := os.Stat(diskPath); err != nil || fi.IsDir() {
-				fmt.Fprintf(cmd.OutOrStderr(), "image %q not found\n", image)
+			// Try resolveBaseImage which handles: file paths, cached images,
+			// aliases, full registry refs, and auto-pulls if needed.
+			var err error
+			diskPath, err = resolveBaseImage(image)
+			if err != nil {
+				fmt.Fprintf(cmd.OutOrStderr(), "image %q not found: %s\n", image, err)
 				os.Exit(1)
 			}
 		}

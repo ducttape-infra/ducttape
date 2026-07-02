@@ -34,6 +34,20 @@ A symlink from the short name (e.g. fedora-cloud.qcow2) points to it.
 			tag = spec[colon:]
 		}
 
+		// Full registry reference (e.g. ghcr.io/org/repo:tag)
+		if isFullRegistryRef(spec) {
+			cacheName := strings.ReplaceAll(spec, "/", "_")
+			if tag == "" {
+				tag = ":latest"
+			}
+			path, err := downloadBaseImage("registry:"+spec, cacheName)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Pulled: %s\n", path)
+			return nil
+		}
+
 		url, ok := di.KnownAliases[baseName]
 		if !ok {
 			return fmt.Errorf("unknown alias %q", baseName)
